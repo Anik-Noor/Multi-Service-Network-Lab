@@ -1,0 +1,153 @@
+--------------------------------
+1. Basic Setup on Router0 (R1)
+---------------------------------
+enable
+configure terminal
+hostname R1
+enable password cisco
+service password-encryption
+!
+interface Gig0/0
+ip address 192.168.10.10 255.255.255.0
+no shutdown
+!
+interface Gig0/1
+ip address 10.1.1.1 255.255.255.0
+no shutdown
+!
+ip route 192.168.20.0 255.255.255.0 Gig0/1
+
+
+--------------------------------
+2. Basic Setup on Router1 (R2)
+---------------------------------
+enable
+configure terminal
+hostname R2
+!
+interface Gig0/0
+ip address 192.168.20.10 255.255.255.0
+no shutdown
+!
+interface Gig0/1
+ip address 10.1.1.2 255.255.255.0
+no shutdown
+!
+ip route 192.168.10.0 255.255.255.0 Gig0/1
+
+
+--------------------------------------
+3. Default Route (Optional)
+--------------------------------------
+R1(config)# ip route 0.0.0.0 0.0.0.0 Gig0/1
+R2(config)# ip route 0.0.0.0 0.0.0.0 Gig0/1
+
+
+---------------------------
+4. Telnet Setup on R1
+---------------------------
+line vty 0 4
+password cisco
+login
+
+
+----------------------------------------------------
+5. RIP Routing (Optional, if using dynamic routing)
+----------------------------------------------------
+On both routers:
+
+router rip
+version 2
+network 192.168.10.0
+network 192.168.20.0
+network 10.1.1.0
+
+
+--------------------------------------------------------------
+6. ACL Configuration (Block PC 192.168.20.1 → 192.168.10.1)
+--------------------------------------------------------------
+access-list 10 deny 192.168.20.1 0.0.0.0
+access-list 10 permit any
+interface Gig0/1
+ip access-group 10 in
+
+
+-------------------------------------
+7. NAT Configuration on R1
+-------------------------------------
+➤ Define inside/outside interfaces:
+
+interface Gig0/0
+ip nat inside
+!
+interface Gig0/1
+ip nat outside
+
+➤ Configure PAT (overload):
+
+access-list 10 permit any
+ip nat inside source list 10 interface Gig0/1 overload
+
+
+
+-------------------------
+🔍 Verify with:
+-------------------------
+show ip nat translations
+
+
+
+----------------------------
+8. DHCP Server on R1
+----------------------------
+ip dhcp excluded-address 192.168.10.1 192.168.10.20
+!
+ip dhcp pool TEST
+network 192.168.10.0 255.255.255.0
+default-router 192.168.10.10
+dns-server 192.168.10.50
+
+📱 Go to PC0 or PC3 → Desktop → IP Configuration → Select "DHCP"
+
+
+--------------------------------------------------------
+9. AAA Configuration on R1 (for TACACS+ to Server)
+--------------------------------------------------------
+aaa new-model
+aaa authentication login TEST group tacacs+ local
+tacacs-server host 192.168.10.50
+tacacs-server key cisco123
+line vty 0 4
+login authentication TEST
+
+Then go to AAA Server GUI:
+
+Enable AAA service
+
+Add:
+
+Client Name: R1
+
+IP: 192.168.10.10
+
+Secret: cisco123
+
+Protocol: TACACS+
+
+
+--------------------------------
+10. SSH Configuration on R1
+--------------------------------
+hostname R1
+ip domain-name cisco.com
+crypto key generate rsa
+1024
+username cisco secret cisco
+!
+line vty 0 4
+login authentication SSH_LOGIN
+transport input ssh
+
+From PC:
+
+ssh -l cisco 192.168.10.10
